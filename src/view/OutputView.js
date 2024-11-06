@@ -2,8 +2,8 @@ import { Console } from '@woowacourse/mission-utils';
 import StoreList from '../StoreList.js';
 
 const OutputView = {
-    printProducts() {
-        StoreList.products.forEach((product) => {
+    productList() {
+        StoreList.productsData.forEach((product) => {
             const { name, price, quantity, promotion } = product;
             const output = `- ${name} ${price.toLocaleString()}원 ${quantity}개 ${promotion}`;
 

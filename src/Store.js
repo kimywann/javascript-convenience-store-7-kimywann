@@ -31,6 +31,19 @@ class Store {
         }
         return null;
     }
+    
+    // 상품 목록과 총 금액 계산 후 결과 반환
+    static getProductsWithTotalPrice(productArray) {
+        return productArray.map((data) => {
+            const [name, quantity] = data.split("-");
+            const totalPrice = this.calculateTotalPrice(name, quantity);
+
+            if (totalPrice !== null) {
+                return { name, quantity: parseInt(quantity, 10), totalPrice };
+            }
+            return null;  
+        }).filter(product => product !== null);
+    }
 }
 
 export default Store;

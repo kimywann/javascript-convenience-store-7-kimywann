@@ -23,6 +23,14 @@ class Store {
         { name: 'MD추천상품', buy: 1, get: 1, start_date: '2024-01-01', end_date: '2024-12-31'},
         { name: '반짝할인', buy: 1, get: 1, start_date: '2024-11-01', end_date: '2024-11-30'},
     ];
+
+    static calculateTotalPrice(name, quantity) {
+        const product = this.itemList.find(item => item.name === name);
+        if (product) {
+            return product.price * parseInt(quantity, 10);
+        }
+        return null;
+    }
 }
 
 export default Store;

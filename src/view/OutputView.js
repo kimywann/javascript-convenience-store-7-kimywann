@@ -1,5 +1,5 @@
 import { Console } from '@woowacourse/mission-utils';
-import StoreList from '../storelist.js';
+import StoreList from '../StoreList.js';
 
 const OutputView = {
     printProducts() {

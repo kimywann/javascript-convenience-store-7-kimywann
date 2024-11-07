@@ -24,6 +24,23 @@ class Store {
         { name: '반짝할인', buy: 1, get: 1, start_date: '2024-11-01', end_date: '2024-11-30'},
     ];
 
+    static findItemByName(name) {
+        return this.itemList.find(item => item.name === name);
+    }
+
+    static deductQuantity(name, quantity) {
+        const item = this.findItemByName(name);
+        if (item && item.quantity >= quantity) {
+            item.quantity -= quantity;
+
+            if (item.quantity === 0) {
+                item.quantity = '재고 없음';
+            }
+            return false
+        }
+        return false;
+    }
+
     static calculateTotalPrice(name, quantity) {
         const product = this.itemList.find(item => item.name === name);
         if (product) {

@@ -10,8 +10,6 @@ class App {
 
     const purchaseItems = await InputView.readItem(); 
 
-    Store.ExceedItemQuantity(purchaseItems);
-
     // 각 상품의 최종 가격 및 프로모션 혜택을 계산합니다
     const receiptItems = this.calculateFinalPrices(purchaseItems);
 

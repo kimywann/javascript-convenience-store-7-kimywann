@@ -32,8 +32,11 @@ class Store {
     
     static ExceedItemQuantity(name, quantity) {
         const ExceedItem = this.findItemByName(name);
-        if (ExceedItem.quantity > quantity) {
-            throw new Error("[ERROR] 재고 수량을 초과하여 구매할 수 없습니다. 다시 입력해 주세요.")
+        if (!ExceedItem) {
+            throw new Error("[ERROR] 해당 상품을 찾을 수 없습니다.");
+        }
+        if (ExceedItem.quantity < quantity) { // 재고가 부족한 경우 예외 발생
+            throw new Error("[ERROR] 재고 수량을 초과하여 구매할 수 없습니다. 다시 입력해 주세요.");
         }
     }
 
@@ -54,20 +57,44 @@ class Store {
         const product = this.findItemByName(name);
         if (product) {
             let totalPrice = product.price * quantity;
-            const promotion = this.promotions.find(promo => promo.name === product.promotion && this.isPromotionActive(promo));
+            const promotion = this.promotions.find(promo => promo.name === product.promotion);
 
-            if (promotion) {
+            // 프로모션이 존재하고, 프로모션 기간 내에 있을 경우에만 행사 적용
+            if (promotion && this.isPromotionActive(promotion)) {
                 const freeItems = Math.floor(quantity / promotion.buy) * promotion.get;
                 totalPrice = product.price * (quantity - freeItems);  // 무료 증정 혜택을 반영한 총 금액
             }
+
             return totalPrice;
         }
         return null;
     }
 
     static isPromotionActive(promotion) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0]; // 오늘 날짜
         return promotion.start_date <= today && today <= promotion.end_date;
+    }
+
+    static calculateGiftItems(productArray) {
+        const giftItems = [];
+
+        productArray.forEach((data) => {
+            const [name, quantity] = data.split("-");
+            const product = this.findItemByName(name);
+
+            if (product) {
+                const promotion = this.promotions.find(promo => promo.name === product.promotion && this.isPromotionActive(promo));
+                
+                if (promotion) {
+                    const freeItems = Math.floor(parseInt(quantity, 10) / promotion.buy) * promotion.get;
+                    if (freeItems > 0) {
+                        giftItems.push({ name, quantity: freeItems });
+                    }
+                }
+            }
+        });
+
+        return giftItems;
     }
 
     static getProductsWithTotalPrice(productArray) {

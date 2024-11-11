@@ -28,12 +28,12 @@ class App {
   }
 
   async getPurchaseItems() {
-    return InputView.readItem();  // 불필요한 await 제거
+    return InputView.readItem();
   }
 
   isStockAvailable(purchaseItems) {
     try {
-      this.checkItemQuantity(purchaseItems); // 재고 수량 체크
+      this.checkItemQuantity(purchaseItems);
       return true;
     } catch (error) {
       Console.print(error.message);
@@ -43,12 +43,24 @@ class App {
 
   checkItemQuantity(purchaseItems) {
     purchaseItems.forEach(({ name, quantity }) => {
-      Store.ExceedItemQuantity(name, quantity); // 재고 초과 여부 체크
+      Store.ExceedItemQuantity(name, quantity);
     });
   }
 
   calculateFinalPrices(purchaseItems) {
-    return purchaseItems.map(item => this.processPurchaseItem(item));
+    return purchaseItems.map(item => {
+      const product = Store.findItemByName(item.name);
+      const promotion = Store.promotions.find(promo => promo.name === product.promotion);
+
+      let promotionApplied = "없음";
+      if (promotion && Store.isPromotionActive(promotion)) {
+        promotionApplied = product.promotion;
+      }
+
+      const totalPrice = Store.calculateTotalPrice(item.name, item.quantity);
+
+      return this.createReceiptItem(item.name, item.quantity, totalPrice, promotionApplied);
+    });
   }
 
   processPurchaseItem({ name, quantity }) {
@@ -81,24 +93,37 @@ class App {
   }
 
   calculateTotalAmount(receiptItems) {
-    return receiptItems.reduce((acc, { totalPrice, quantity, promotionApplied, name }) => {
-      acc.totalAmount += totalPrice;
-      acc.totalQuantity += quantity;
-      acc.promotionDiscount += this.calculateDiscountForItem(promotionApplied, quantity, name);
-      return acc;
+    return receiptItems.reduce((acc, { quantity, promotionApplied, name }) => {
+        const basePrice = Store.findItemByName(name).price * quantity;
+        acc.totalAmount += basePrice;
+        acc.totalQuantity += quantity;
+        acc.promotionDiscount += this.calculateDiscountForItem(promotionApplied, quantity, name);
+        return acc;
     }, { totalAmount: 0, promotionDiscount: 0, totalQuantity: 0 });
   }
 
   calculateDiscountForItem(promotionApplied, quantity, name) {
     if (promotionApplied === "없음") return 0;
+
     const product = Store.findItemByName(name);
-    return this.calculatePromotionDiscount(promotionApplied, quantity, product);
+    const promotion = Store.promotions.find(promo => promo.name === promotionApplied);
+
+    // 프로모션 기간 체크 추가
+    if (!promotion || !Store.isPromotionActive(promotion)) {
+        return 0;
+    }
+
+    return this.calculatePromotionDiscount(promotion, quantity, product);
   }
 
-  calculatePromotionDiscount(promotionApplied, quantity, product) {
-    if (promotionApplied === "MD추천상품" || promotionApplied === "반짝할인") {
-      const freeItems = Math.floor(quantity / 2);  // 2개 구매 시 1개 무료
-      return freeItems * product.price;
+  calculatePromotionDiscount(promotion, quantity, product) {
+    if (promotion.name === "MD추천상품" || promotion.name === "반짝할인") {
+        const freeItems = Math.floor(quantity / 2);
+        return freeItems * product.price;
+    }
+    if (promotion.name === "탄산2+1") {
+        const freeItems = Math.floor(quantity / 3);
+        return freeItems * product.price;
     }
     return 0;
   }
@@ -131,8 +156,8 @@ class App {
   }
 
   printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
-    OutputView.printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
     OutputView.printGiftItems(receiptItems);
+    OutputView.printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
   }
 }
 

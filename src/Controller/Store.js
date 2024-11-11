@@ -28,25 +28,37 @@ class Store {
         { name: '반짝할인', buy: 1, get: 1, start_date: '2024-11-01', end_date: '2024-11-30'},
     ];
 
+    static hasProduct(name) {
+        return this.itemList.some(item => item.name === name);
+    }
+
+    static isExceedQuantity(name, quantity) {
+        const item = this.findItemByName(name);
+        return !item || item.quantity < quantity;
+    }
+
     static findItemByName(name) {
-        return this.itemList.find(item => item.name === name);
+        return this.itemList.find(item =>
+            item.name === name && item.quantity !== '재고 없음' && item.quantity > 0
+        );
     }
 
     static ExceedItemQuantity(name, quantity) {
-        const item = this.findItemByName(name);
-        if (!item) {
+        if (!this.hasProduct(name)) {
             throw new Error("[ERROR] 해당 상품을 찾을 수 없습니다.");
         }
-        if (item.quantity < quantity) {
+        if (this.isExceedQuantity(name, quantity)) {
             throw new Error("[ERROR] 재고 수량을 초과하여 구매할 수 없습니다. 다시 입력해 주세요.");
         }
     }
 
     static deductQuantity(name, quantity) {
         const item = this.findItemByName(name);
-        if (!item || item.quantity < quantity) return false;
-        item.quantity -= quantity;
+        if (this.isExceedQuantity(name, quantity)) {
+            return false;
+        }
 
+        item.quantity -= quantity;
         if (item.quantity <= 0) {
             item.quantity = '재고 없음';
         }
@@ -55,15 +67,21 @@ class Store {
 
     static calculateTotalPrice(name, quantity) {
         const product = this.findItemByName(name);
-        if (!product) return null;
+        if (!product) {
+            return null;
+        }
 
-        let totalPrice = this.calculateBasePrice(product, quantity);
+        const basePrice = this.calculateBasePrice(product, quantity);
         const promotion = this.findPromotionForProduct(product);
 
-        if (promotion && this.isPromotionActive(promotion)) {
-            totalPrice = this.applyPromotion(promotion, product, quantity);
+        return this.calculateFinalPrice(promotion, product, quantity, basePrice);
+    }
+
+    static calculateFinalPrice(promotion, product, quantity, basePrice) {
+        if (!promotion || !this.isPromotionActive(promotion)) {
+            return basePrice;
         }
-        return totalPrice;
+        return this.applyPromotion(promotion, product, quantity);
     }
 
     static calculateBasePrice(product, quantity) {
@@ -71,6 +89,9 @@ class Store {
     }
 
     static findPromotionForProduct(product) {
+        if (!product?.promotion) {
+            return null;
+        }
         return this.promotions.find(promo => promo.name === product.promotion);
     }
 
@@ -81,11 +102,12 @@ class Store {
 
     static isPromotionActive(promotion) {
         const today = this.getTodayDate();
-        return promotion.start_date <= today && today <= promotion.end_date;
+        return today >= promotion.start_date && today <= promotion.end_date;
     }
 
     static getTodayDate() {
-        return DateTimes.now().toISOString().split('T')[0];
+        const now = DateTimes.now();
+        return now.toISOString().split('T')[0];
     }
 
     static calculateGiftItems(productArray) {
@@ -118,17 +140,24 @@ class Store {
     }
 
     static getProductsWithTotalPrice(productArray) {
-        return productArray
-            .map(data => this.createProductWithTotalPrice(data))
-            .filter(product => product !== null);
+        return productArray.map(this.parseProductData).filter(Boolean);
     }
 
-    static createProductWithTotalPrice(data) {
-        const [name, quantity] = data.split("-");
-        const totalPrice = this.calculateTotalPrice(name, parseInt(quantity, 10));
-        if (totalPrice === null) return null;
+    static parseProductData(data) {
+        if (typeof data === 'string') {
+            const [name, quantityStr] = data.split("-");
+            const quantity = parseInt(quantityStr, 10);
+            return Store.createProductObject(name, quantity);
+        }
+        return Store.createProductObject(data.name, data.quantity);
+    }
 
-        return { name, quantity: parseInt(quantity, 10), totalPrice };
+    static createProductObject(name, quantity) {
+        const totalPrice = Store.calculateTotalPrice(name, quantity);
+        if (totalPrice === null) {
+            return null;
+        }
+        return { name, quantity, totalPrice };
     }
 }
 

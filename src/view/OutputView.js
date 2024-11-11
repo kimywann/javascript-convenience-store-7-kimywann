@@ -31,19 +31,27 @@ const OutputView = {
         return `- ${name} ${price.toLocaleString()}원 ${quantityText} ${promotionText}`;
     },
 
+    printReceipt(products, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
+        this.printReceiptHeader();
+        this.printProductInfo(products); // 상품 정보 출력
+        this.printGiftItems(products); // 증정 상품 정보 출력
+        this.printReceiptFooter(totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity); // 영수증 하단 출력
+    },
+
     printReceiptHeader() {
         Console.print("==============W 편의점================");
         Console.print("상품명\t\t수량\t\t금액");
     },
 
-    printReceipt(products, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
-        this.printReceiptHeader();
-        products.forEach((product) => this.printProductInfo(product));
-        this.printReceiptFooter(totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
-    },
-
-    printProductInfo(product) {
-        Console.print(`${product.name}\t\t${product.quantity}\t\t${product.totalPrice}`);
+    printProductInfo(receiptItems) {
+        receiptItems.forEach((product) => {
+            if (product.name && product.quantity && product.totalPrice) {
+                const totalItemPrice = Store.findItemByName(product.name).price * product.quantity;
+                Console.print(
+                    `${product.name.padEnd(12)}${product.quantity.toString().padEnd(12)}\t${totalItemPrice.toLocaleString()}`
+                );
+            }
+        });
     },
 
     printGiftItems(products) {
@@ -59,10 +67,10 @@ const OutputView = {
 
     printReceiptFooter(totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
         Console.print("=====================================");
-        Console.print(`총구매액\t${totalQuantity}\t\t${totalAmount.toLocaleString()}원`);
-        Console.print(`행사할인\t\t\t-${promotionDiscount.toLocaleString()}원`);
+        Console.print(`총구매액\t${totalQuantity}\t\t${totalAmount.toLocaleString()}`);
+        Console.print(`행사할인\t\t\t-${promotionDiscount.toLocaleString()}`);
         this.printMembershipDiscount(totalAmount, membershipDiscount);
-        Console.print(`내실돈\t\t\t\t${finalAmount.toLocaleString()}원`);
+        Console.print(`내실돈\t\t\t\t${finalAmount.toLocaleString()}`);
     },
 
     printMembershipDiscount(totalAmount, membershipDiscount) {
@@ -73,7 +81,7 @@ const OutputView = {
                 discount = 8000;
             }
         }
-        Console.print(`멤버십할인\t\t\t-${discount.toLocaleString()}원`);
+        Console.print(`멤버십할인\t\t\t-${discount.toLocaleString()}`);
     }
 }
 export default OutputView;

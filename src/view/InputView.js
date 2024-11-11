@@ -3,26 +3,24 @@ import Store from '../Controller/Store.js';
 
 const InputView = {
     async readItem() {
-        while (true) {
-            try {
-                const input = await this.readPurchaseInput();
-                const items = this.parseItems(input);
-                return this.validateAndGetProducts(items);
-            } catch (error) {
-                Console.print(error.message);
-            }
+        try {
+            const input = await this.readPurchaseInput();
+            const items = this.parseItems(input);
+            return this.validateAndGetProducts(items);
+        } catch (error) {
+            Console.print(error.message);
+            return this.readItem();
         }
     },
 
     async readMemberShip() {
-        while (true) {
-            try {
-                const input = await this.readMembershipInput();
-                this.validateMembershipInput(input);
-                return input;
-            } catch (error) {
-                Console.print(error.message);
-            }
+        try {
+            const input = await this.readMembershipInput();
+            this.validateMembershipInput(input);
+            return input;
+        } catch (error) {
+            Console.print(error.message);
+            return this.readMemberShip();
         }
     },
 

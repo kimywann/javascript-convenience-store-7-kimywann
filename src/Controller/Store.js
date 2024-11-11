@@ -1,3 +1,5 @@
+import { DateTimes } from "@woowacourse/mission-utils";
+
 class Store {
     static itemList = [
         { name: '콜라', price: 1000, quantity: 10, promotion: '탄산2+1' },
@@ -29,84 +31,104 @@ class Store {
     static findItemByName(name) {
         return this.itemList.find(item => item.name === name);
     }
-    
+
     static ExceedItemQuantity(name, quantity) {
-        const ExceedItem = this.findItemByName(name);
-        if (!ExceedItem) {
+        const item = this.findItemByName(name);
+        if (!item) {
             throw new Error("[ERROR] 해당 상품을 찾을 수 없습니다.");
         }
-        if (ExceedItem.quantity < quantity) { // 재고가 부족한 경우 예외 발생
+        if (item.quantity < quantity) {
             throw new Error("[ERROR] 재고 수량을 초과하여 구매할 수 없습니다. 다시 입력해 주세요.");
         }
     }
 
     static deductQuantity(name, quantity) {
         const item = this.findItemByName(name);
-        if (item && item.quantity >= quantity) {
-            item.quantity -= quantity;
+        if (!item || item.quantity < quantity) return false;
+        item.quantity -= quantity;
 
-            if (item.quantity === 0) {
-                item.quantity = '재고 없음';
-            }
-            return true
+        if (item.quantity <= 0) {
+            item.quantity = '재고 없음';
         }
-        return false;
+        return true;
     }
 
     static calculateTotalPrice(name, quantity) {
         const product = this.findItemByName(name);
-        if (product) {
-            let totalPrice = product.price * quantity;
-            const promotion = this.promotions.find(promo => promo.name === product.promotion);
+        if (!product) return null;
 
-            // 프로모션이 존재하고, 프로모션 기간 내에 있을 경우에만 행사 적용
-            if (promotion && this.isPromotionActive(promotion)) {
-                const freeItems = Math.floor(quantity / promotion.buy) * promotion.get;
-                totalPrice = product.price * (quantity - freeItems);  // 무료 증정 혜택을 반영한 총 금액
-            }
+        let totalPrice = this.calculateBasePrice(product, quantity);
+        const promotion = this.findPromotionForProduct(product);
 
-            return totalPrice;
+        if (promotion && this.isPromotionActive(promotion)) {
+            totalPrice = this.applyPromotion(promotion, product, quantity);
         }
-        return null;
+        return totalPrice;
+    }
+
+    static calculateBasePrice(product, quantity) {
+        return product.price * quantity;
+    }
+
+    static findPromotionForProduct(product) {
+        return this.promotions.find(promo => promo.name === product.promotion);
+    }
+
+    static applyPromotion(promotion, product, quantity) {
+        const freeItems = Math.floor(quantity / promotion.buy) * promotion.get;
+        return product.price * (quantity - freeItems);
     }
 
     static isPromotionActive(promotion) {
-        const today = new Date().toISOString().split('T')[0]; // 오늘 날짜
+        const today = this.getTodayDate();
         return promotion.start_date <= today && today <= promotion.end_date;
+    }
+
+    static getTodayDate() {
+        return DateTimes.now().toISOString().split('T')[0];
     }
 
     static calculateGiftItems(productArray) {
         const giftItems = [];
 
-        productArray.forEach((data) => {
+        productArray.forEach(data => {
             const [name, quantity] = data.split("-");
-            const product = this.findItemByName(name);
-
-            if (product) {
-                const promotion = this.promotions.find(promo => promo.name === product.promotion && this.isPromotionActive(promo));
-                
-                if (promotion) {
-                    const freeItems = Math.floor(parseInt(quantity, 10) / promotion.buy) * promotion.get;
-                    if (freeItems > 0) {
-                        giftItems.push({ name, quantity: freeItems });
-                    }
-                }
+            const freeItems = this.getFreeItemsIfAvailable(name, quantity);
+            if (freeItems > 0) {
+                giftItems.push({ name, quantity: freeItems });
             }
         });
 
         return giftItems;
     }
 
-    static getProductsWithTotalPrice(productArray) {
-        return productArray.map((data) => {
-            const [name, quantity] = data.split("-");
-            const totalPrice = this.calculateTotalPrice(name, parseInt(quantity, 10));
+    static getFreeItemsIfAvailable(name, quantity) {
+        const product = this.findItemByName(name);
+        if (product) {
+            return this.calculateFreeItems(product, quantity);
+        }
+        return 0;
+    }
 
-            if (totalPrice !== null) {
-                return { name, quantity: parseInt(quantity, 10), totalPrice };
-            }
-            return null;
-        }).filter(product => product !== null);
+    static calculateFreeItems(product, quantity) {
+        const promotion = this.promotions.find(promo => promo.name === product.promotion && this.isPromotionActive(promo));
+        if (!promotion) return 0;
+
+        return Math.floor(parseInt(quantity, 10) / promotion.buy) * promotion.get;
+    }
+
+    static getProductsWithTotalPrice(productArray) {
+        return productArray
+            .map(data => this.createProductWithTotalPrice(data))
+            .filter(product => product !== null);
+    }
+
+    static createProductWithTotalPrice(data) {
+        const [name, quantity] = data.split("-");
+        const totalPrice = this.calculateTotalPrice(name, parseInt(quantity, 10));
+        if (totalPrice === null) return null;
+
+        return { name, quantity: parseInt(quantity, 10), totalPrice };
     }
 }
 

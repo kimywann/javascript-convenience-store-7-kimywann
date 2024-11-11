@@ -5,14 +5,32 @@ import Store from "./Controller/Store.js";
 
 class App {
   async run() {
+    await this.processSingleTransaction();
+    const continueShopping = await this.askForMorePurchases();
+
+    if (!continueShopping) {
+      return; // 프로그램 종료
+    }
+    await this.run();
+  }
+
+  async processSingleTransaction() {
     this.printWelcomeMessage();
     const purchaseItems = await this.getPurchaseItems();
-    if (!this.isStockAvailable(purchaseItems)) return;
+
+    if (!this.isStockAvailable(purchaseItems)) {
+      return;
+    }
 
     const receiptItems = this.calculateFinalPrices(purchaseItems);
     const { totalAmount, promotionDiscount, totalQuantity } = this.calculateTotalAmount(receiptItems);
 
     await this.printReceiptDetails(receiptItems, totalAmount, promotionDiscount, totalQuantity);
+  }
+
+  async askForMorePurchases() {
+    const answer = await Console.readLineAsync("\n감사합니다. 구매하고 싶은 다른 상품이 있나요? (Y/N)\n");
+    return answer.toUpperCase() === 'Y';
   }
 
   async printReceiptDetails(receiptItems, totalAmount, promotionDiscount, totalQuantity) {
@@ -94,11 +112,11 @@ class App {
 
   calculateTotalAmount(receiptItems) {
     return receiptItems.reduce((acc, { quantity, promotionApplied, name }) => {
-        const basePrice = Store.findItemByName(name).price * quantity;
-        acc.totalAmount += basePrice;
-        acc.totalQuantity += quantity;
-        acc.promotionDiscount += this.calculateDiscountForItem(promotionApplied, quantity, name);
-        return acc;
+      const basePrice = Store.findItemByName(name).price * quantity;
+      acc.totalAmount += basePrice;
+      acc.totalQuantity += quantity;
+      acc.promotionDiscount += this.calculateDiscountForItem(promotionApplied, quantity, name);
+      return acc;
     }, { totalAmount: 0, promotionDiscount: 0, totalQuantity: 0 });
   }
 
@@ -107,23 +125,28 @@ class App {
 
     const product = Store.findItemByName(name);
     const promotion = Store.promotions.find(promo => promo.name === promotionApplied);
-
-    // 프로모션 기간 체크 추가
     if (!promotion || !Store.isPromotionActive(promotion)) {
-        return 0;
+      return 0;
     }
-
     return this.calculatePromotionDiscount(promotion, quantity, product);
+  }
+
+  calculateMdOrSpecialDiscount(quantity, product) {
+    const freeItems = Math.floor(quantity / 2);
+    return freeItems * product.price;
+  }
+
+  calculateCarbonatedDiscount(quantity, product) {
+    const freeItems = Math.floor(quantity / 3);
+    return freeItems * product.price;
   }
 
   calculatePromotionDiscount(promotion, quantity, product) {
     if (promotion.name === "MD추천상품" || promotion.name === "반짝할인") {
-        const freeItems = Math.floor(quantity / 2);
-        return freeItems * product.price;
+      return this.calculateMdOrSpecialDiscount(quantity, product);
     }
     if (promotion.name === "탄산2+1") {
-        const freeItems = Math.floor(quantity / 3);
-        return freeItems * product.price;
+      return this.calculateCarbonatedDiscount(quantity, product);
     }
     return 0;
   }
@@ -156,8 +179,10 @@ class App {
   }
 
   printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
+    OutputView.printReceiptHeader();
+    OutputView.printProductInfo(receiptItems);
     OutputView.printGiftItems(receiptItems);
-    OutputView.printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
+    OutputView.printReceiptFooter(totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
   }
 }
 

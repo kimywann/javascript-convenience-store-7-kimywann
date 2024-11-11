@@ -5,100 +5,135 @@ import Store from "./Controller/Store.js";
 
 class App {
   async run() {
-    Console.print("안녕하세요. W편의점입니다.\n현재 보유하고 있는 상품입니다.\n");
-    OutputView.printItemList();
+    this.printWelcomeMessage();
+    const purchaseItems = await this.getPurchaseItems();
+    if (!this.isStockAvailable(purchaseItems)) return;
 
-    const purchaseItems = await InputView.readItem(); 
-
-    // 재고 수량 초과 여부 확인
-    try {
-      purchaseItems.forEach(({ name, quantity }) => {
-        Store.ExceedItemQuantity(name, quantity); // 구매하려는 아이템에 대해 재고 수량 체크
-      });
-    } catch (error) {
-      Console.print(error.message);
-      return; // 예외가 발생하면 더 이상 진행하지 않고 종료
-    }
-
-    // 각 상품의 최종 가격 및 프로모션 혜택을 계산합니다
     const receiptItems = this.calculateFinalPrices(purchaseItems);
-
-    // 총 구매 금액, 행사할인, 멤버십 할인을 계산
     const { totalAmount, promotionDiscount, totalQuantity } = this.calculateTotalAmount(receiptItems);
 
-    // 재고를 차감합니다
-    receiptItems.forEach(({ name, quantity }) => {
-      Store.deductQuantity(name, quantity);
-    });
+    await this.printReceiptDetails(receiptItems, totalAmount, promotionDiscount, totalQuantity);
+  }
 
-    // 멤버십 할인 여부를 확인
-    const membershipDiscount = await InputView.readMemberShip();
-
-    // 최종 금액 계산
+  async printReceiptDetails(receiptItems, totalAmount, promotionDiscount, totalQuantity) {
+    this.deductStock(receiptItems);
+    const membershipDiscount = await this.getMembershipDiscount();
     const finalAmount = this.calculateFinalAmount(totalAmount, promotionDiscount, membershipDiscount);
+    this.printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
+  }
 
-    // 영수증 출력
-    OutputView.printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
-    OutputView.printGiftItems(receiptItems);
+  printWelcomeMessage() {
+    Console.print("안녕하세요. W편의점입니다.\n현재 보유하고 있는 상품입니다.\n");
+    OutputView.printItemList();
+  }
+
+  async getPurchaseItems() {
+    return InputView.readItem();  // 불필요한 await 제거
+  }
+
+  isStockAvailable(purchaseItems) {
+    try {
+      this.checkItemQuantity(purchaseItems); // 재고 수량 체크
+      return true;
+    } catch (error) {
+      Console.print(error.message);
+      return false;
+    }
+  }
+
+  checkItemQuantity(purchaseItems) {
+    purchaseItems.forEach(({ name, quantity }) => {
+      Store.ExceedItemQuantity(name, quantity); // 재고 초과 여부 체크
+    });
   }
 
   calculateFinalPrices(purchaseItems) {
-    return purchaseItems.map(({ name, quantity }) => {
-      const product = Store.findItemByName(name);
-      const totalPrice = product.price * quantity; // 직접 계산
-      const promotion = Store.promotions.find(promo => promo.name === product.promotion);
-      
-      return {
-        name,
-        quantity,
-        totalPrice,
-        promotionApplied: promotion ? promotion.name : "없음"
-      };
-    });
+    return purchaseItems.map(item => this.processPurchaseItem(item));
+  }
+
+  processPurchaseItem({ name, quantity }) {
+    const product = Store.findItemByName(name);
+    const totalPrice = this.calculateTotalPrice(product, quantity);
+    const promotionApplied = this.getPromotionApplied(product);
+
+    return this.createReceiptItem(name, quantity, totalPrice, promotionApplied);
+  }
+
+  calculateTotalPrice(product, quantity) {
+    return product.price * quantity;
+  }
+
+  getPromotionApplied(product) {
+    const promotion = Store.promotions.find(promo => promo.name === product.promotion);
+    if (promotion) {
+      return promotion.name;
+    }
+    return "없음";
+  }
+
+  createReceiptItem(name, quantity, totalPrice, promotionApplied) {
+    return {
+      name,
+      quantity,
+      totalPrice,
+      promotionApplied
+    };
   }
 
   calculateTotalAmount(receiptItems) {
-    let totalAmount = 0;
-    let promotionDiscount = 0;
-    let totalQuantity = 0;
+    return receiptItems.reduce((acc, { totalPrice, quantity, promotionApplied, name }) => {
+      acc.totalAmount += totalPrice;
+      acc.totalQuantity += quantity;
+      acc.promotionDiscount += this.calculateDiscountForItem(promotionApplied, quantity, name);
+      return acc;
+    }, { totalAmount: 0, promotionDiscount: 0, totalQuantity: 0 });
+  }
 
-    receiptItems.forEach(({ name, quantity, totalPrice, promotionApplied }) => {
-        totalAmount += totalPrice;
-        totalQuantity += quantity;
+  calculateDiscountForItem(promotionApplied, quantity, name) {
+    if (promotionApplied === "없음") return 0;
+    const product = Store.findItemByName(name);
+    return this.calculatePromotionDiscount(promotionApplied, quantity, product);
+  }
 
-        if (promotionApplied !== "없음") {
-            const product = Store.findItemByName(name);
-            const promotion = Store.promotions.find(promo => promo.name === product.promotion);
+  calculatePromotionDiscount(promotionApplied, quantity, product) {
+    if (promotionApplied === "MD추천상품" || promotionApplied === "반짝할인") {
+      const freeItems = Math.floor(quantity / 2);  // 2개 구매 시 1개 무료
+      return freeItems * product.price;
+    }
+    return 0;
+  }
 
-            // 1+1 프로모션 적용
-            if (promotion && (promotion.name === "MD추천상품" || promotion.name === "반짝할인")) {
-                // 2개 구매시 1개 무료 (1+1 프로모션)
-                const freeItems = Math.floor(quantity / 2);  // 2개 구매시 1개 무료
-                const discountAmount = freeItems * product.price;
-                promotionDiscount += discountAmount;
-            }
-        }
+  deductStock(receiptItems) {
+    receiptItems.forEach(({ name, quantity }) => {
+      Store.deductQuantity(name, quantity);
     });
+  }
 
-    return { totalAmount, promotionDiscount, totalQuantity };
-}
+  async getMembershipDiscount() {
+    return InputView.readMemberShip();
+  }
 
   calculateFinalAmount(totalAmount, promotionDiscount, membershipDiscount) {
-    // 프로모션 할인 후 남은 금액 계산
     const amountAfterPromotion = totalAmount - promotionDiscount;
+    const membershipDiscountAmount = this.calculateMembershipDiscount(amountAfterPromotion, membershipDiscount);
+    return amountAfterPromotion - membershipDiscountAmount;
+  }
 
-    // 멤버십 할인 금액 계산
-    let membershipDiscountAmount = 0;
-    if (membershipDiscount === 'Y') {
-      membershipDiscountAmount = 0.30 * amountAfterPromotion; // 30% 할인
-      if (membershipDiscountAmount > 8000) {
-        membershipDiscountAmount = 8000; // 최대 8,000원까지만 할인
-      }
+  calculateMembershipDiscount(amount, membershipDiscount) {
+    if (membershipDiscount !== 'Y') {
+      return 0;
     }
+    const discount = 0.30 * amount;
+    if (discount > 8000) {
+      return 8000;
+    }
+    return discount;
+  }
 
-    // 최종 금액 계산
-    const finalAmount = amountAfterPromotion - membershipDiscountAmount;
-    return finalAmount;
+  printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
+    OutputView.printReceipt(receiptItems, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity);
+    OutputView.printGiftItems(receiptItems);
   }
 }
+
 export default App;

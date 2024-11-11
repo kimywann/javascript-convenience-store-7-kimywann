@@ -33,8 +33,8 @@ const OutputView = {
 
     printReceipt(products, totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity) {
         this.printReceiptHeader();
-        this.printProductInfo(products); // 상품 정보 출력
-        this.printGiftItems(products); // 증정 상품 정보 출력
+        this.printProductInfo(products);
+        this.printGiftItems(products);
         this.printReceiptFooter(totalAmount, promotionDiscount, membershipDiscount, finalAmount, totalQuantity); // 영수증 하단 출력
     },
 
@@ -60,7 +60,7 @@ const OutputView = {
         if (giftItems.length > 0) {
             Console.print("==============증     정===============");
             giftItems.forEach((gift) => {
-            Console.print(`${gift.name}\t\t${gift.quantity}`);
+                Console.print(`${gift.name}\t\t${gift.quantity}`);
             });
         }
     },
